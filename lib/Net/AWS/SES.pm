@@ -10,7 +10,7 @@ use LWP::UserAgent;
 use Digest::HMAC_SHA1;
 use Net::AWS::SES::Response;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub __timestamp {
     return localtime->datetime;
