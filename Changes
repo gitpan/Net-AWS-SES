@@ -1,0 +1,9 @@
+Revision history for Perl extension Net::AWS::SES.
+
+0.01  Tue Sep 17 15:54:48 2013
+	- original version; created by h2xs 1.23 with options
+		-A -X -nNet::AWS::SES
+
+0.02	Thursday, September 19, 2013
+	- initial CPAN release
+
