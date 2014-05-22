@@ -1,5 +1,4 @@
 package Net::AWS::SES;
-
 use strict;
 use warnings;
 use Carp ('croak');
@@ -9,8 +8,7 @@ use HTTP::Headers;
 use LWP::UserAgent;
 use Digest::HMAC_SHA1;
 use Net::AWS::SES::Response;
-
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub __timestamp {
     return localtime->datetime;
@@ -19,20 +17,16 @@ sub __timestamp {
 sub __signature {
     my $self = shift;
     my ($date) = @_;
-
     unless ($date) {
         croak "signature(): usage error";
     }
-
     my $hmac = Digest::HMAC_SHA1->new( $self->secret_key );
     $hmac->add($date);
     return encode_base64( $hmac->digest );
 }
-
 sub __user_agent {
     my $self = shift;
-
-    my $ua = LWP::UserAgent->new(
+    my $ua   = LWP::UserAgent->new(
         agent           => sprintf( "%s/%s", __PACKAGE__, $VERSION ),
         default_headers => $self->__header
     );
@@ -41,10 +35,8 @@ sub __user_agent {
 
 sub __header {
     my $self = shift;
-
-    my $h = HTTP::Headers->new;
+    my $h    = HTTP::Headers->new;
     $h->date(time);
-
     $h->header(
         'Content-type'         => 'application/x-www-form-urlencoded',
         'X-Amzn-Authorization' => sprintf(
@@ -52,26 +44,23 @@ sub __header {
             $self->access_key, $self->__signature( $h->header('Date') )
         )
     );
-
     return $h;
 }
 
 sub new {
     my $class = shift;
-
-    my %data = (
+    my %data  = (
         access_key   => '',
         secret_key   => '',
+        region       => 'us-east-1',
         from         => '',
         __user_agent => undef,
         __response   => undef,
         @_
     );
-
     unless ( $data{access_key} && $data{secret_key} ) {
         croak "new(): usage error";
     }
-
     return bless \%data, $class;
 }
 
@@ -99,70 +88,66 @@ sub secret_key {
     return $self->{secret_key} = $key;
 }
 
+sub region {
+    my $self = shift;
+    my ($key) = @_;
+    return $self->{region} unless $key;
+    return $self->{region} = $key;
+}
+
 sub call {
     my $self = shift;
     my ( $action, $args, $responseClass ) = @_;
-
     unless ($action) {
         croak "call(): usage error";
     }
-
     $args->{AWSAccessKeyId} = $self->access_key;
     $args->{Action}         = $action;
     $args->{Timestamp}      = $self->__timestamp;
-
     my $ua = $self->__user_agent;
-    my $response = $ua->post( "https://email.us-east-1.amazonaws.com", $args );
+    my $response =
+      $ua->post( "https://email." . $self->region . ".amazonaws.com",
+        $args );
     return Net::AWS::SES::Response->new( $response, $action );
 }
 
 sub send {
     my $self = shift;
-
     return $self->send_mime(@_) if ( @_ == 1 );
-
     my (%args) = @_;
-
     unless ( ref( $args{To} ) ) {
         $args{To} = [ $args{To} ];
     }
-
     my $from = $args{From} || $self->{from};
     unless ($from) {
         croak "send(): usage error";
     }
-
     unless ( $from && ( $args{Body} || $args{Body_html} ) && $args{To} ) {
         croak "Usage Error";
     }
-
     my %call_args = (
         'Message.Subject.Data'    => $args{Subject},
         'Message.Subject.Charset' => 'UTF-8',
         'Source'                  => $from
     );
-
     if ( $args{Body} ) {
         $call_args{'Message.Body.Text.Data'}    = $args{Body};
         $call_args{'Message.Body.Text.Charset'} = 'UTF-8',;
     }
-
     if ( $args{Body_html} ) {
         $call_args{'Message.Body.Html.Data'}    = $args{Body_html};
         $call_args{'Message.Body.Html.Charset'} = 'UTF-8';
     }
-
     if ( $args{ReturnPath} ) {
         $call_args{'ReturnPath'} = $args{ReturnPath};
     }
-
     for ( my $i = 0 ; $i < @{ $args{To} } ; $i++ ) {
         my $email = $args{To}->[$i];
         $call_args{ sprintf( 'Destination.ToAddresses.member.%d', $i + 1 ) } =
           $email;
     }
     my $r = $self->call( 'SendEmail', \%call_args );
-}
+} ## end sub send
 
 sub verify_email {
     my ( $self, $email ) = @_;
@@ -171,7 +156,6 @@ sub verify_email {
     }
     return $self->call( 'VerifyEmailIdentity', { EmailAddress => $email } );
 }
-
 *delete_domain = \&delete_identity;
 *delete_email  = \&delete_identity;
 
@@ -184,14 +168,12 @@ sub delete_identity {
 }
 
 sub list_emails {
-    my $self = shift;
-    my %args = @_;
-
+    my $self      = shift;
+    my %args      = @_;
     my %call_args = ( IdentityType => 'EmailAddress' );
     if ( $args{limit} ) {
         $call_args{MaxItems} = $args{limit};
     }
-
     if ( $args{offset} ) {
         $call_args{NextToken} = $args{offset};
     }
@@ -199,9 +181,8 @@ sub list_emails {
 }
 
 sub list_domains {
-    my $self = shift;
-    my %args = @_;
-
+    my $self      = shift;
+    my %args      = @_;
     my %call_args = ( IdentityType => 'Domain' );
     if ( $args{limit} ) {
         $call_args{MaxItems} = $args{limit};
@@ -235,15 +216,13 @@ sub send_mime {
 sub get_dkim_attributes {
     my $self       = shift;
     my @identities = @_;
-
-    my %call_args = ();
+    my %call_args  = ();
     for ( my $i = 0 ; $i < @identities ; $i++ ) {
         my $id = $identities[$i];
         $call_args{ 'Identities.member.' . ( $i + 1 ) } = $id;
     }
     return $self->call( 'GetIdentityDkimAttributes', \%call_args );
 }
-
 __END__
 
 =head1 NAME
@@ -290,9 +269,11 @@ All the methods (including C<call()>) returns an instance of L<Response|Net::AWS
 
 =head2 new(access_key => $key, secret_key => $s_key)
 
+=head2 new(access_key => $key, secret_key => $s_key, region => $region)
+
 =head2 new(access_key => $key, secret_key => $s_key, from => 'default@from.address')
 
-Returns a Net::AWS::SES instance. C<access_key> and C<secret_key> arguments are required. C<from> is optional, and can be overriden in respective api calls. Must be your verified identity.
+Returns a Net::AWS::SES instance. C<access_key> and C<secret_key> arguments are required. C<region> is optional, and can be overriden in respective api calls. Must be a valid SES region: C<us-east-1>, C<us-west-2> or C<eu-west-1>. Default is C<us-east-1>. C<from> is optional, and can be overriden in respective api calls. Must be your verified identity. 
 
 =head2 send( $msg )
 

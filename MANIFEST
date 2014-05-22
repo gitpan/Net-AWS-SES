@@ -3,7 +3,6 @@ lib/Net/AWS/SES.pm
 lib/Net/AWS/SES/Response.pm
 Makefile.PL
 MANIFEST
-Net-AWS-SES-0.02.tar.gz
 README
 t/image.gif
 t/Net-AWS-SES.t
